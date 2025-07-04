@@ -6,8 +6,10 @@ This project is a simplified, multi-threaded, in-memory database server built wi
 
 ### **How to Run**
 
-1.  **Save the Code:**
-    * Save the server code into a single file named `pyredis_server.py`.
+1.  **Clone the project using the following command in the terminal:**
+    ```
+    Git clone https://github.com/Deepak-19922001/PyRedis.git
+    ```
 
 2.  **Start the Server:**
     * Open a terminal in the project folder and run the following command:
