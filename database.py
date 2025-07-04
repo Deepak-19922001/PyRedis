@@ -1,6 +1,8 @@
 import threading
 import time
 from collections import deque
+import fnmatch
+
 
 class PyRedisDB:
     def __init__(self):
@@ -15,6 +17,40 @@ class PyRedisDB:
             del self._expirations[key]
             return True
         return False
+
+    def exists(self, keys):
+        with self._lock:
+            count = 0
+            for key in keys:
+                if not self._is_expired(key) and key in self._data:
+                    count += 1
+            return count
+
+    def delete(self, keys):
+        with self._lock:
+            deleted_count = 0
+            for k in keys:
+                if self._is_expired(k):
+                    continue
+                if k in self._data:
+                    del self._data[k]
+                    if k in self._expirations:
+                        del self._expirations[k]
+                    deleted_count += 1
+            return deleted_count
+
+    def keys(self, pattern):
+        with self._lock:
+            all_keys = list(self._data.keys())
+            for key in all_keys:
+                self._is_expired(key)
+            return [key for key in self._data.keys() if fnmatch.fnmatch(key, pattern)]
+
+    def flushdb(self):
+        with self._lock:
+            self._data.clear()
+            self._expirations.clear()
+            return "OK"
 
     def get(self, key):
         with self._lock:
@@ -32,19 +68,19 @@ class PyRedisDB:
                 del self._expirations[key]
             return "OK"
 
-    def delete(self, keys):
+    def incr_decr(self, key, increment):
         with self._lock:
-            deleted_count = 0
-            for k in keys:
-                if self._is_expired(k):
-                    continue
-                if k in self._data:
-                    del self._data[k]
-                    if k in self._expirations:
-                        del self._expirations[k]
-                    deleted_count += 1
-            return deleted_count
+            if self._is_expired(key):
+                self._data[key] = str(increment)
+                return increment
 
+            value = self._data.get(key, '0')
+            try:
+                new_value = int(value) + increment
+                self._data[key] = str(new_value)
+                return new_value
+            except (ValueError, TypeError):
+                return "ERR value is not an integer or out of range"
 
     def hset(self, key, field, value):
         with self._lock:
@@ -99,12 +135,9 @@ class PyRedisDB:
             lst = self._data.get(key)
             if not isinstance(lst, deque):
                 return []
-            if end < 0:
-                end_index = end + 1
-                if end_index == 0:
-                    return list(lst)[start:]
-                else:
-                    return list(lst)[start:end_index]
+
+            if end == -1:
+                return list(lst)[start:]
             else:
                 return list(lst)[start:end + 1]
 
@@ -113,6 +146,3 @@ class PyRedisDB:
             result = self.lrange(key, start, end)
             result.reverse()
             return result
-
-
-
